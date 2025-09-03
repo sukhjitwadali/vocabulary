@@ -16,37 +16,59 @@ export default function AddWordTab({ onWordSaved }: AddWordTabProps) {
 
   const fetchWordData = async (wordToFetch: string): Promise<WordData | null> => {
     try {
-      // Using Free Dictionary API
-      const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${wordToFetch.toLowerCase()}`);
+      // Using Free Dictionary API from freedictionaryapi.com
+      const response = await fetch(`https://freedictionaryapi.com/api/v1/entries/en/${wordToFetch.toLowerCase()}`);
       
       if (!response.ok) {
         throw new Error('Word not found');
       }
 
       const data = await response.json();
-      const wordData = data[0];
 
-      if (!wordData || !wordData.meanings || wordData.meanings.length === 0) {
+      if (!data.entries || data.entries.length === 0) {
         throw new Error('No meanings found for this word');
       }
 
-      // Get the first meaning and definition
-      const firstMeaning = wordData.meanings[0];
-      const firstDefinition = firstMeaning.definitions[0];
+      // Get the first entry and its senses
+      const firstEntry = data.entries[0];
+      const senses = firstEntry.senses;
+
+      if (!senses || senses.length === 0) {
+        throw new Error('No definitions found for this word');
+      }
+
+      // Get the first definition
+      const firstSense = senses[0];
+      const meaning = firstSense.definition;
       
-      const meaning = firstDefinition.definition;
-      
-      // Collect examples from all definitions
+      // Collect examples from quotes and examples
       const examples: string[] = [];
-      wordData.meanings.forEach((meaning: { definitions: Array<{ example?: string }> }) => {
-        meaning.definitions.forEach((def: { example?: string }) => {
-          if (def.example && examples.length < 2) {
-            examples.push(def.example);
-          }
-        });
+      
+      // First, try to get examples from quotes
+      senses.forEach((sense: { quotes?: Array<{ text: string }> }) => {
+        if (sense.quotes && examples.length < 2) {
+          sense.quotes.forEach((quote: { text: string }) => {
+            if (examples.length < 2) {
+              examples.push(quote.text);
+            }
+          });
+        }
       });
 
-      // If we don't have enough examples, create some generic ones
+      // If we don't have enough examples from quotes, try examples array
+      if (examples.length < 2) {
+        senses.forEach((sense: { examples?: string[] }) => {
+          if (sense.examples && examples.length < 2) {
+            sense.examples.forEach((example: string) => {
+              if (examples.length < 2) {
+                examples.push(example);
+              }
+            });
+          }
+        });
+      }
+
+      // If we still don't have enough examples, create some generic ones
       while (examples.length < 2) {
         examples.push(`Example usage of "${wordToFetch}" in a sentence.`);
       }
